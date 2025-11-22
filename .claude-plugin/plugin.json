@@ -1,7 +1,7 @@
 {
   "name": "process-improvement",
   "description": "Systematic intervention system for detecting frustration, analyzing root causes, implementing fixes, and tracking effectiveness over time",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Greg Serafini",
     "email": "greg@serafini.com"

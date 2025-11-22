@@ -14,6 +14,45 @@ Systematic intervention system that detects frustration, analyzes root causes, i
 
 **Announce at start:** "🛟 Process Improvement Protocol initiated! Saving my context for later."
 
+## Phase 0: Plugin Path Discovery (ALWAYS RUN FIRST)
+
+**CRITICAL**: Before any file operations, discover where this plugin is installed.
+
+The plugin must work regardless of installation method:
+- Local testing: `/path/to/process-improvement/`
+- Marketplace install: `~/.claude/plugins/marketplaces/process-improvement/`
+- Legacy location: `~/.claude/process-improvement/` (deprecated)
+
+**Path Discovery Strategy**:
+
+```bash
+# Determine plugin root directory
+# Priority: CLAUDE_PLUGIN_ROOT env var > marketplace location > current directory
+if [ -n "$CLAUDE_PLUGIN_ROOT" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+elif [ -d ~/.claude/plugins/marketplaces/process-improvement ]; then
+  PLUGIN_ROOT=~/.claude/plugins/marketplaces/process-improvement
+elif [ -d ~/.claude/process-improvement ]; then
+  # Legacy fallback
+  PLUGIN_ROOT=~/.claude/process-improvement
+else
+  # Assume local development
+  PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
+
+# Export data directory for all file operations
+export PLUGIN_DATA="$PLUGIN_ROOT/data"
+
+# Verify data directory exists, create if missing
+mkdir -p "$PLUGIN_DATA"/{sessions,deferred-incidents,fixes-registry}
+
+# Verify required files exist, create if missing
+touch "$PLUGIN_DATA/incidents.jsonl"
+[ -f "$PLUGIN_DATA/days-without-incident.json" ] || echo '{"last_incident":null,"days_since_last":0,"longest_streak":0}' > "$PLUGIN_DATA/days-without-incident.json"
+```
+
+**Usage**: All file operations in this skill use `${PLUGIN_DATA}/filename` instead of absolute paths.
+
 ## Trigger Conditions
 
 ### Primary Trigger
@@ -62,7 +101,7 @@ Check user message for ANY of these phrases:
 ```
 
 If user chooses option 2 (defer):
-- Save context to `~/.claude/process-improvement/deferred-incidents/YYYY-MM-DD-HHMMSS.json`
+- Save context to `${PLUGIN_DATA}/deferred-incidents/YYYY-MM-DD-HHMMSS.json`
 - Include: timestamp, trigger phrase, last user message, current todos, files being edited
 - Continue with original work
 - Skill will check for deferred incidents on next /improve run
@@ -83,7 +122,7 @@ Replace bracketed text with actual time frame based on parameter.
 
 ### 2. Save Resume State
 
-Create `~/.claude/process-improvement/sessions/YYYY-MM-DD-HHMMSS-resume.json`:
+Create `${PLUGIN_DATA}/sessions/YYYY-MM-DD-HHMMSS-resume.json`:
 
 ```json
 {
@@ -97,7 +136,7 @@ Create `~/.claude/process-improvement/sessions/YYYY-MM-DD-HHMMSS-resume.json`:
 
 ### 3. Display Streak
 
-Read `~/.claude/process-improvement/days-without-incident.json` and calculate days since last incident:
+Read `${PLUGIN_DATA}/days-without-incident.json` and calculate days since last incident:
 
 ```
 Days since last frustration incident: X
@@ -119,7 +158,7 @@ Check for obvious patterns:
 
 ### 2. Check Deferred Incidents
 
-Read `~/.claude/process-improvement/deferred-incidents/*.json`
+Read `${PLUGIN_DATA}/deferred-incidents/*.json`
 
 If any found:
 ```
@@ -135,17 +174,17 @@ Analyzing all together.
 ### 3. Load Historical Context
 
 Read files within the specified time frame:
-- `~/.claude/process-improvement/incidents.jsonl` (filter by timestamp and `days` parameter)
-- `~/.claude/process-improvement/successful-fixes.md` (what worked before)
-- `~/.claude/process-improvement/patterns-detected.md` (known failure modes)
-- `~/.claude/process-improvement/fixes-registry/*.md` (filter by file modification date using `days` parameter)
+- `${PLUGIN_DATA}/incidents.jsonl` (filter by timestamp and `days` parameter)
+- `${PLUGIN_DATA}/successful-fixes.md` (what worked before)
+- `${PLUGIN_DATA}/patterns-detected.md` (known failure modes)
+- `${PLUGIN_DATA}/fixes-registry/*.md` (filter by file modification date using `days` parameter)
 
 **Filter incidents.jsonl by time frame:**
 ```bash
 # Only load incidents within the specified time frame
 jq -c --arg cutoff_days "$days" \
   'select((now - (.timestamp | fromdate)) / 86400 <= ($cutoff_days | tonumber))' \
-  ~/.claude/process-improvement/incidents.jsonl
+  "${PLUGIN_DATA}/incidents.jsonl"
 ```
 
 Check for similar past incidents (within time frame) and their solutions.
@@ -220,7 +259,7 @@ Apply the selected fix:
 - Update configuration files (e.g., `actually_works_plus_superpowers.md`)
 - Create new skill if needed (in `~/.claude/skills/user/`)
 - Add enforcement hook if needed (in `~/.claude/hooks/`)
-- Create entry in `fixes-registry/YYYY-MM-DD-fix-name.md` with:
+- Create entry in `${PLUGIN_DATA}/fixes-registry/YYYY-MM-DD-fix-name.md` with:
   - Date implemented
   - Problem it solves
   - What was changed (file paths)
@@ -229,7 +268,7 @@ Apply the selected fix:
 
 ### 4. Log to incidents.jsonl
 
-Append new line to `~/.claude/process-improvement/incidents.jsonl`:
+Append new line to `${PLUGIN_DATA}/incidents.jsonl`:
 
 ```json
 {"timestamp":"2025-11-21T17:45:00Z","days_since_last":7,"severity":"major_win","pattern":"Testing skipped","root_cause":"Agent claimed 'production-ready' without testing","solution_implemented":"Added BLOCKER section to actually_works.md requiring TodoWrite + verification skill","fix_file":"fixes-registry/2025-11-21-testing-protocol-blocker.md","expected_impact":"Zero untested 'complete' claims","effectiveness_1week":null,"effectiveness_2week":null,"status":"active"}
@@ -261,7 +300,7 @@ If option 2: Continue improvement conversation
 
 ## Phase 5: Resume Work
 
-Display saved context from `sessions/YYYY-MM-DD-HHMMSS-resume.json`:
+Display saved context from `${PLUGIN_DATA}/sessions/YYYY-MM-DD-HHMMSS-resume.json`:
 
 ```
 We're done with Process Improvement Protocol. Here's where we were:
@@ -288,11 +327,11 @@ When `/improve` runs (weekly or user-initiated), check for pending effectiveness
 ```bash
 # Find incidents needing 1-week check
 jq -c 'select(.effectiveness_1week == null and
-  (now - (.timestamp | fromdate)) >= 604800)' ~/.claude/process-improvement/incidents.jsonl
+  (now - (.timestamp | fromdate)) >= 604800)' "${PLUGIN_DATA}/incidents.jsonl"
 
 # Find incidents needing 2-week check
 jq -c 'select(.effectiveness_2week == null and
-  (now - (.timestamp | fromdate)) >= 1209600)' ~/.claude/process-improvement/incidents.jsonl
+  (now - (.timestamp | fromdate)) >= 1209600)' "${PLUGIN_DATA}/incidents.jsonl"
 ```
 
 ### 2. Count Pattern Occurrences
@@ -385,10 +424,10 @@ Fix: [fix name] (1 week ago)
 - General-purpose Task agent for complex investigation (optional)
 
 **Updates:**
-- incidents.jsonl (append only)
-- days-without-incident.json (overwrite)
-- sessions/*.json (create new)
-- deferred-incidents/*.json (create when deferred)
-- fixes-registry/*.md (create per fix)
-- successful-fixes.md (manual curation based on effectiveness)
-- patterns-detected.md (manual curation of common issues)
+- ${PLUGIN_DATA}/incidents.jsonl (append only)
+- ${PLUGIN_DATA}/days-without-incident.json (overwrite)
+- ${PLUGIN_DATA}/sessions/*.json (create new)
+- ${PLUGIN_DATA}/deferred-incidents/*.json (create when deferred)
+- ${PLUGIN_DATA}/fixes-registry/*.md (create per fix)
+- ${PLUGIN_DATA}/successful-fixes.md (manual curation based on effectiveness)
+- ${PLUGIN_DATA}/patterns-detected.md (manual curation of common issues)

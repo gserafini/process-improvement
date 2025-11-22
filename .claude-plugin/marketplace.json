@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Systematic intervention system for detecting frustration and improving workflows",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "plugins": [
     {
       "name": "process-improvement",
       "source": "./",
       "description": "Systematic intervention for reducing user frustration through root cause analysis and effectiveness tracking",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "strict": true
     }
   ]
