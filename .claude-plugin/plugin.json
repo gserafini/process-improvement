@@ -1,0 +1,17 @@
+{
+  "name": "process-improvement",
+  "description": "Systematic intervention system for detecting frustration, analyzing root causes, implementing fixes, and tracking effectiveness over time",
+  "version": "1.0.0",
+  "author": {
+    "name": "Greg Serafini",
+    "email": "greg@serafini.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "process-improvement",
+    "frustration-detection",
+    "root-cause-analysis",
+    "effectiveness-tracking",
+    "workflow-optimization"
+  ]
+}

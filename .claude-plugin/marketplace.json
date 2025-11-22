@@ -1,0 +1,20 @@
+{
+  "name": "process-improvement",
+  "owner": {
+    "name": "Greg Serafini",
+    "email": "greg@serafini.com"
+  },
+  "metadata": {
+    "description": "Systematic intervention system for detecting frustration and improving workflows",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "process-improvement",
+      "source": "./",
+      "description": "Systematic intervention for reducing user frustration through root cause analysis and effectiveness tracking",
+      "version": "1.0.0",
+      "strict": true
+    }
+  ]
+}
